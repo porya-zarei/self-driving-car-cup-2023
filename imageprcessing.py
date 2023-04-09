@@ -1,6 +1,6 @@
 # Importing some useful packages
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
+from picamera2 import *
 import numpy as np
 import cv2 as cv
 import os
@@ -101,14 +101,13 @@ def HSL_color_selection(image):
 
     return masked_image
 
-
 def gray_scale(image):
     """
     Convert images to gray scale.
         Parameters:
             image: An np.array compatible with plt.imshow.
     """
-    return cv.cvtColor(image, cv.COLOR_RGB2GRAY)
+    return cv.cvtColor(image, cv.COLOR_BGR2GRAY)
 
 
 def gaussian_smoothing(image, kernel_size=13):
@@ -149,14 +148,22 @@ def region_selection(image):
     # We could have used fixed numbers as the vertices of the polygon,
     # but they will not be applicable to images with different dimesnions.
     rows, cols = image.shape[:2]
-    bottom_left = [cols * 0.1, rows * 0.95]
-    top_left = [cols * 0.4, rows * 0.6]
-    bottom_right = [cols * 0.9, rows * 0.95]
-    top_right = [cols * 0.6, rows * 0.6]
+    # print(f"{rows} , {cols}")
+    bottom_left = [1, rows -1]
+    top_left = [1, rows * 0.7]
+    bottom_right = [cols - 1, rows -1 ]
+    top_right = [cols - 1, rows * 0.7]
     vertices = np.array(
         [[bottom_left, top_left, top_right, bottom_right]], dtype=np.int32
     )
+    # cv.circle(image,vertices[0][0],10,(255,0,0),10)
+    # cv.circle(image,vertices[0][1],10,(255,0,0),10)
+    # cv.circle(image,vertices[0][2],10,(255,0,0),10)
+    # cv.circle(image,vertices[0][3],10,(255,0,0),10)
+    # print(f" points => {vertices}")
     cv.fillPoly(mask, vertices, ignore_mask_color)
+    # print(f"{mask} . {image}")
+    # plt.plot(image)
     masked_image = cv.bitwise_and(image, mask)
     return masked_image
 
@@ -209,19 +216,24 @@ def average_slope_intercept(lines):
     right_lines = []  # (slope, intercept)
     right_weights = []  # (length,)
 
-    for line in lines:
-        for x1, y1, x2, y2 in line:
-            if x1 == x2:
-                continue
-            slope = (y2 - y1) / (x2 - x1)
-            intercept = y1 - (slope * x1)
-            length = np.sqrt(((y2 - y1) ** 2) + ((x2 - x1) ** 2))
-            if slope < 0:
-                left_lines.append((slope, intercept))
-                left_weights.append((length))
-            else:
-                right_lines.append((slope, intercept))
-                right_weights.append((length))
+    try:
+        if len(lines)>=2:
+            for line in lines:
+                for x1, y1, x2, y2 in line:
+                    if x1 == x2:
+                        continue
+                    slope = (y2 - y1) / (x2 - x1)
+                    intercept = y1 - (slope * x1)
+                    length = np.sqrt(((y2 - y1) ** 2) + ((x2 - x1) ** 2))
+                    if slope < 0:
+                        left_lines.append((slope, intercept))
+                        left_weights.append((length))
+                    else:
+                        right_lines.append((slope, intercept))
+                        right_weights.append((length))
+    except:
+        pass
+
     left_lane = (
         np.dot(left_weights, left_lines) / np.sum(left_weights)
         if len(left_weights) > 0
@@ -266,10 +278,12 @@ def lane_lines(image, lines):
         y2 = y1 * 0.6
         left_line = pixel_points(y1, y2, left_lane)
         right_line = pixel_points(y1, y2, right_lane)
-        middle_x1 = (left_line[0][0] + right_line[0][0]) / 2
-        middle_x2 = (left_line[1][0] + right_line[1][0]) / 2
-        middle_x = (middle_x1 + middle_x2) / 2
-        middle_y = image.shape[1] / 2
+        print(f"left line => {left_line} , right line => {right_line}")
+        middle_y1 = (left_line[0][0] + left_line[1][0]) / 2
+        middle_y2 = (right_line[0][0] + right_line[1][0]) / 2
+        middle_y = (middle_y1 + middle_y2) / 2
+        middle_x = image.shape[0] / 2
+        print(f"middle => {(middle_x,middle_y)}")
         return left_line, right_line, (int(middle_x), int(middle_y))
     except:
         return ((0, 0), (0, 0)),((0, 0), (0, 0)),(0, 0)
@@ -287,6 +301,7 @@ def draw_lane_lines(image, lines, color=[255, 0, 0], thickness=12):
     line_image = np.zeros_like(image)
     for line in lines:
         if line is not None:
+            # print(f"line => {line}")
             cv.line(line_image, *line, color, thickness)
     return cv.addWeighted(image, 1.0, line_image, 1.0, 0.0)
 
@@ -298,35 +313,43 @@ def frame_processor(image):
             image: Single video frame.
     """
     color_select = HSL_color_selection(image)
+    # plt.imshow(color_select)
     gray = gray_scale(color_select)
+    # plt.imshow(gray)
     smooth = gaussian_smoothing(gray)
+    # plt.imshow(smooth)
     edges = canny_detector(smooth)
+    # plt.imshow(edges)
     region = region_selection(edges)
+    # plt.imshow(region)
     hough = hough_transform(region)
+    # print(hough)
     return lane_lines(image, hough)
 
 
 def frame_drawer(image):
-    start_time = time()
     left_line, right_line, middle_point = frame_processor(image)
-    end_time = time()
-    print(f"middle => {middle_point} , {image.shape} , time : {end_time-start_time}")
+    print(f"l => {left_line} , r => {right_line}")
     result = draw_lane_lines(image, (left_line, right_line))
-    result = cv.circle(result, middle_point, 10, (0, 0, 255), -1)
+    result = cv.circle(result, (middle_point[1],middle_point[0]), 10, (0, 0, 255), -1)
     result = cv.circle(
-        result, (int(image.shape[1] / 2), int(image.shape[0] / 2)), 10, (0, 0, 255), -1
+        result, (int(image.shape[1] / 2), int(image.shape[0] / 2)), 10, (0, 255, 255), -1
     )
     return result
 
-
-def main():
-    index = 2
-    test_images = [plt.imread(img) for img in glob.glob("./test_images/test*.jpg")]
-    print(f"len : {len(test_images)}")
-    img = frame_drawer(test_images[index])
-    plt.imshow(img)
-    plt.show()
+# picam2 = Picamera2()
+# config = picam2.create_preview_configuration({"format":"YUV420"})
+# picam2.configure(config)
+# picam2.start()
+# # time.sleep(1)
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     # while True:
+#     #     image = picam2.capture_array("main")
+#     #     image = cv.cvtColor(image,cv.COLOR_YUV420P2RGB)
+#     #     left_line,right_line,middle = frame_processor(image)
+#     #     print(f"left : {left_line}, right : {right_line}, middle : {middle}")
+#     #     plt.imshow(image)
+#     #     plt.pause(1)
+#     picam2.close()

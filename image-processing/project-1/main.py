@@ -3,6 +3,7 @@ import cv2
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from camera_calibration import calib, undistort
+from picamera2 import Picamera2
 from threshold import get_combined_gradients, get_combined_hls, combine_grad_hls
 from line import (
     Line,
@@ -44,18 +45,27 @@ mtx, dist = calib()
 
 last_time = 0
 
+picam2 = Picamera2()
+config = picam2.create_preview_configuration({"format":"YUV420"})
+picam2.configure(config)
+picam2.start()
+
+# time.sleep(2)
 
 def main():
     if __name__ == "__main__":
 
         # For debugging Frame by Frame, using cv2.imshow()
 
-        cap = cv2.VideoCapture(input_name)
+        # cap = cv2.VideoCapture(input_name)
 
         frame_num = -1
 
-        while cap.isOpened():
-            _, frame = cap.read()
+        while True:
+            # _, frame = cap.read()
+            image = picam2.capture_array("main")
+            frame = cv2.cvtColor(image,cv2.COLOR_YUV420P2RGB)
+             
 
             frame_num += 1  # increment frame_num, used for naming saved images
 
