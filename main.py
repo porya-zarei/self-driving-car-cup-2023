@@ -1,7 +1,7 @@
 import serial
 import RPi.GPIO as GPIO
 import cv2 as cv
-import imageprcessing
+import image_processing.imageprcessing as imageprcessing
 from picamera2 import Picamera2
 import time
 import matplotlib.pyplot as plt
