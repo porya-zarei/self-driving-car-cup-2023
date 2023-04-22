@@ -3,17 +3,15 @@
 #define in1 8
 #define in2 9
 #define ena 6
-//setup ultra sonic pins
+// setup ultra sonic pins
 const int trigPin = 7;
 const int echoPin = 4;
-long duration;
-int distance;
 Servo myservo;
 int delay_time = 30;
 
 int tag_id = -1;
 int steer = 90;
-
+int traffic_light = -1; // -1 => no light 0 => green , 1 => yellow , 2 => red
 void setup()
 {
   delay(20000);
@@ -22,7 +20,7 @@ void setup()
   pinMode(in2, OUTPUT);
   pinMode(ena, OUTPUT);
   myservo.attach(5);
-  //usonic setup
+  // usonic setup
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
   myservo.write(steer);
@@ -35,57 +33,59 @@ void loop()
     String ser_data = serial_read();
     delay(50);
     steer = get_data_sep_by_comma(ser_data, 0).toInt();
-    tag_id = get_data_sep_by_comma(ser_data, 1).toInt();
     steer = scale_data(steer);
-//    Serial.println(String("new data : " + String(steer) + ", " + String(tag_id)));
+    tag_id = get_data_sep_by_comma(ser_data, 1).toInt();
+    traffic_light = get_data_sep_by_comma(ser_data, 2).toInt();
     delay(50);
   }
   myservo.write(steer);
+  if (is_obstacle())
+  {
+    tag_id = 6;
+  }
   switch (tag_id)
   {
-    case -1: // no sign
-      forward_car();
-//      Serial.println("FORWARD SECTION -1");
-      delay(50);
-      break;
-    case 119:
-      forward_car();
-      break;
-    case 6: // stop
-      stop_car();
-//      Serial.println("STOP SECTION 666");
-      delay(50);
-      break;
-    default:
-      forward_car();
-      break;
+  case -1: // forward
+    forward_car(140);
+    delay(50);
+    break;
+  case 119:
+    forward_car(140);
+    break;
+  case 6: // stop
+    stop_car();
+    delay(50);
+    break;
+  default:
+    forward_car(140);
+    break;
   }
-  //    tag_id = -1;
-  //    Serial.println(String("data => steer:")+String(steer)+", tag_id:"+String(tag_id));
-  //    delay(1000);
 }
+
 void servo_move(int steer)
 {
   myservo.write(steer);
 }
+
 bool serial_available()
 {
   return Serial.available() > 0;
 }
+
 String serial_read()
 {
   String msg = "";
-  if(Serial.available())
+  if (Serial.available())
   {
     delay(10);
-    while(Serial.available()>0)
+    while (Serial.available() > 0)
     {
       msg += (char)Serial.read();
     }
     Serial.flush();
- }
- return msg;
-//  return Serial.readString();
+  }
+  return msg;
+  //  return Serial.readString();
 }
 
 String get_data_sep_by_comma(String text, int index)
@@ -113,58 +113,63 @@ String get_data_sep_by_comma(String text, int index)
 
 int get_distance()
 {
+  double duration, distance;
+  double soundSpeed = 331.4 + 0.606 * 20;
   digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
+  delayMicroseconds(5);
   digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10);
+  delayMicroseconds(5);
   digitalWrite(trigPin, LOW);
+  delayMicroseconds(5);
   duration = pulseIn(echoPin, HIGH);
-  distance = duration * 0.034 / 2;
+  distance = duration * (soundSpeed / 20000);
   return distance;
 }
 bool is_obstacle()
 {
   return get_distance() <= 20;
 }
+
 int scale_data(int ser_data)
 {
   // serial data = -100 ~ 100
-  // servo range = 105 ~ 75 deg
+  // servo range = 80 ~ 110 deg
   // map(ser_data,-100,100,75,105)
   if (ser_data >= 66)
   {
     return 80;
   }
-  if (ser_data < 66 && ser_data >= 33)
+  else if (ser_data < 66 && ser_data >= 33)
   {
     return 85;
   }
-  if (ser_data < 33 && ser_data >= 10)
+  else if (ser_data < 33 && ser_data >= 10)
   {
     return 90;
   }
-  if (ser_data < 10 && ser_data > -10)
+  else if (ser_data < 10 && ser_data > -10)
   {
     return 95;
   }
-  if (ser_data <= -10 && ser_data > -33)
+  else if (ser_data <= -10 && ser_data > -33)
   {
     return 100;
   }
-  if (ser_data <= -33 && ser_data > -66)
+  else if (ser_data <= -33 && ser_data > -66)
   {
     return 105;
   }
-  if (ser_data <= -66)
+  else if (ser_data <= -66)
   {
     return 110;
   }
 }
-void forward_car()
+
+void forward_car(uint8_t car_speed)
 {
   digitalWrite(in1, HIGH);
   digitalWrite(in2, LOW);
-  analogWrite(ena, 120);
+  analogWrite(ena, car_speed % 255);
 }
 void stop_car()
 {
