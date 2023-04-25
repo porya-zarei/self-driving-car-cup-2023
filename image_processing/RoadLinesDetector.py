@@ -149,9 +149,9 @@ class RoadLinesDetector:
         rows, cols = image.shape[:2]
         # print(f"{rows} , {cols}")
         bottom_left = [1, rows - 1]
-        top_left = [1, rows * 0.7]
+        top_left = [70, rows * 0.7]
         bottom_right = [cols - 1, rows - 1]
-        top_right = [cols - 1, rows * 0.7]
+        top_right = [cols - 70, rows * 0.7]
         vertices = np.array(
             [[bottom_left, top_left, top_right, bottom_right]], dtype=np.int32
         )
@@ -161,9 +161,11 @@ class RoadLinesDetector:
         # cv.circle(image,vertices[0][3],10,(255,0,0),10)
         # print(f" points => {vertices}")
         cv.fillPoly(mask, vertices, ignore_mask_color)
-        # print(f"{mask} . {image}")
+        
         # plt.plot(image)
         masked_image = cv.bitwise_and(image, mask)
+        # print(f"{mask} . {image}")
+        # plt.imshow(masked_image)
         return masked_image
 
     def hough_transform(self, image):

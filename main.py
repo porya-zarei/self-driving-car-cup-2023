@@ -1,7 +1,8 @@
 import serial
+
 # import RPi.GPIO as GPIO
 import cv2 as cv
-from image_processing import AprilTagDetector, RoadLinesDetector, TrafficLightDetector
+from image_processing import AprilTagDetector, RoadLinesDetector, TrafficLightDetector, CrossWalkDetector
 from picamera2 import Picamera2
 import time
 import apriltag
@@ -22,13 +23,15 @@ picam2.start()
 april_tag_detector = AprilTagDetector.AprilTagDetector()
 road_lines_detector = RoadLinesDetector.RoadLinesDetector()
 traffic_light_detector = TrafficLightDetector.TrafficLightDetector()
+cross_walk_detector = CrossWalkDetector.CrossWalkDetector()
 
 
 time.sleep(1)
 
 
-def serial_send(steer, tag_id,traffic_light_state):
-    data = f"{steer},{tag_id},{traffic_light_state}".encode()
+def serial_send(steer, tag_id, traffic_light_state,cross_walk_state):
+    data = f"{steer},{tag_id},{traffic_light_state},{cross_walk_state}".encode()
+    print(f"serial data => {data}")
     ser.write(data)
 
 
@@ -61,23 +64,26 @@ def main():
 
         traffic_light_detector.detect_red(image)
 
-        april_tag_detector.detect_id(image)
+        april_tag_detector.detect(image)
+        
+        cross_walk_detector.detect(image)
 
         image_middle = get_image_middle(image)
 
         left_line, right_line, middle = road_lines_detector.frame_processor(image)
 
-        print(f"image middle => {image_middle} , middle => {middle}")
+        # print(f"image middle => {image_middle} , middle => {middle}")
 
         if middle[0] != 0:
             prev_error = last_error
-            last_error = (((middle[1] - image_middle[1]) * 0.5) // 5) * 5
-            print(f"last error => {last_error}")
+            last_error = (((middle[1] - image_middle[1]) * 0.3) // 1) * 1
+            # print(f"last error => {last_error}")
 
         serial_send(
             last_error,
             april_tag_detector.tag_id,
             traffic_light_detector.traffic_light_state,
+            int(cross_walk_detector.cross_walk_state)
         )
 
         data = serial_read()

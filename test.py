@@ -40,18 +40,16 @@ if __name__ == "__main__":
         start_time = time.time()
         image = picam2.capture_array("main")
         image = cv.cvtColor(image, cv.COLOR_YUV420P2RGB)
-        traffic_lights = traffic_light_detector.detect(image)
-        prev_april_result = april_result
-        april_result = april_tag_detector.detect_id(image)
-        if april_result is None:
-            april_result = -1
-        print(f"april result => {april_result}")
-        image_shape = image.shape
-        image_middle = (image.shape[0] // 2, image.shape[1] // 2)
-        image = road_lines_detector.frame_drawer(image)
+        
+        traffic_light_detector.detect_red(image)
+        april_tag_detector.detect(image)
+        print(f"april result => {april_tag_detector.tag_id}")
+        print(f"traffic light result => {traffic_light_detector.traffic_light_state}")
+        # image_shape = image.shape
+        # image_middle = (image.shape[0] // 2, image.shape[1] // 2)
+        # image = road_lines_detector.frame_drawer(image)
         plt.imshow(image)
         end_time = time.time()
-        print(f"tl => {traffic_lights}")
         print(f"time : {end_time - start_time}")
-        plt.pause(0.03)
+        plt.pause(0.01)
     plt.show()
